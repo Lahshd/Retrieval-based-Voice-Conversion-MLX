@@ -11,7 +11,7 @@ env:
 jobs:
   build-ipa:
     name: Compile RVC MLX iOS App
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - name: 📦 Checkout Repository Source
@@ -31,9 +31,12 @@ jobs:
           echo "--- Package.resolved ---"
           find "$PROJECT_DIR" -name Package.resolved -not -path "*/Vendor/*" -exec cat {} \; || true
 
-      - name: 🔧 Select Xcode Version
+      - name: 🔧 Select Xcode 16 (project format 77 needs Xcode 16+)
         run: |
-          sudo xcode-select -s /Applications/Xcode_15.4.app
+          echo "Installed Xcodes:"; ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_16*.app | sort -V | tail -n 1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
           xcodebuild -version
 
       - name: 🌐 Configure Git Resolution
@@ -86,7 +89,7 @@ jobs:
           zip -qry RVC-MLX-Unsigned.ipa Payload
 
       - name: 📤 Upload Finished IPA
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: RVC-MLX-Mobile-Bundle
           path: ${{ github.workspace }}/build/RVC-MLX-Unsigned.ipa
@@ -94,7 +97,7 @@ jobs:
 
       - name: 📤 Upload Build Logs
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: xcodebuild-logs
           path: ${{ github.workspace }}/build/logs
