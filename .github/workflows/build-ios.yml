@@ -76,6 +76,21 @@ jobs:
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           defaults write com.apple.dt.Xcode IDEPackageSupportUseBuiltInSCM YES
 
+      - name: 📥 Fetch mlx-swift into Vendor/ (pinned to repo's gitlink commit if possible)
+        run: |
+          DEST="$PROJECT_DIR/Vendor/mlx-swift"
+          SHA=$(git ls-files -s -- "$DEST" | awk '$1=="160000"{print $2}')
+          echo "Pinned gitlink commit: ${SHA:-none}"
+          rm -rf "$DEST"
+          git clone https://github.com/ml-explore/mlx-swift "$DEST"
+          if [ -n "$SHA" ] && git -C "$DEST" checkout "$SHA"; then
+            echo "Checked out pinned commit $SHA"
+          else
+            echo "::warning::Could not check out pinned commit; using default branch at $(git -C "$DEST" rev-parse --short HEAD)"
+          fi
+          git -C "$DEST" submodule update --init --recursive --depth 1
+          ls -la "$DEST/Package.swift"
+
       - name: 🛠️ Resolve Swift Package Dependencies
         run: |
           set -o pipefail
