@@ -28,15 +28,17 @@ jobs:
 
       - name: 🛠️ Force Resolve Swift Package Dependencies
         run: |
+          cd Demos/iOS/RVCNative
           xcodebuild -resolvePackageDependencies \
-            -project RVC-MLX.xcodeproj \
-            -scheme "RVC-MLX"
+            -project RVCNative.xcodeproj \
+            -scheme "RVCNative"
 
       - name: 🔨 Compile Build Folder (No Code Signing Required)
         run: |
+          cd Demos/iOS/RVCNative
           xcodebuild build \
-            -project RVC-MLX.xcodeproj \
-            -scheme "RVC-MLX" \
+            -project RVCNative.xcodeproj \
+            -scheme "RVCNative" \
             -configuration Release \
             -destination "generic/platform=iOS" \
             CODE_SIGNING_ALLOWED=NO \
@@ -47,9 +49,8 @@ jobs:
       - name: 📦 Structure Unsigned App Into Payload Directory
         run: |
           mkdir -p $GITHUB_WORKSPACE/build/Payload
-          # Locate compiled .app dynamically from the Xcode default build products folder
           cd ~/Library/Developer/Xcode/DerivedData
-          APP_PATH=$(find . -name "RVC-MLX.app" -type d | head -n 1)
+          APP_PATH=$(find . -name "RVCNative.app" -type d | head -n 1)
           if [ -z "$APP_PATH" ]; then
             APP_PATH=$(find . -name "*.app" -type d | head -n 1)
           fi
