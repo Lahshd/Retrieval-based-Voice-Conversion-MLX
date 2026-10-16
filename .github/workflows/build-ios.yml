@@ -19,25 +19,55 @@ jobs:
         with:
           submodules: false
 
-      - name: 🔍 Diagnose how mlx-swift is referenced
+      - name: 🔍 Diagnose project layout
         run: |
-          echo "--- .gitmodules ---"
-          cat .gitmodules 2>/dev/null || echo "(none)"
-          echo "--- gitlinks (mode 160000) ---"
-          git ls-files -s | grep '^160000' || echo "(none)"
-          echo "--- project.pbxproj package refs ---"
+          cd "$PROJECT_DIR"
+          echo "--- directory ---"; ls -la
+          echo "--- workspaces / local packages ---"
+          find . \( -name "*.xcworkspace" -o -name Package.swift \) \
+            -not -path "*/.build/*" -not -path "*/xcuserdata/*" -not -path "*/Vendor/*" -not -path "*/.swiftpm/*"
+          echo "--- where RVCNativeFeature is defined ---"
+          grep -rn "RVCNativeFeature" --include=Package.swift . || echo "(not found in any Package.swift)"
+          echo "--- package refs in pbxproj ---"
           grep -nE "mlx|XCLocalSwiftPackageReference|XCRemoteSwiftPackageReference|relativePath|repositoryURL" \
-            "$PROJECT_DIR/RVCNative.xcodeproj/project.pbxproj" || true
-          echo "--- Package.resolved ---"
-          find "$PROJECT_DIR" -name Package.resolved -not -path "*/Vendor/*" -exec cat {} \; || true
+            RVCNative.xcodeproj/project.pbxproj || true
+          echo "--- dependencies declared by local packages ---"
+          find . -name Package.swift -not -path "*/.build/*" -not -path "*/Vendor/*" \
+            -exec sh -c 'echo "## $1"; grep -nE "\.package\(|path:|url:" "$1"' _ {} \; || true
+          echo "--- repo .gitmodules / gitlinks ---"
+          cd "$GITHUB_WORKSPACE"
+          cat .gitmodules 2>/dev/null || echo "(no .gitmodules)"
+          git ls-files -s | grep '^160000' || echo "(no gitlinks)"
 
-      - name: 🔧 Select Xcode 16 (project format 77 needs Xcode 16+)
+      - name: 🔧 Select newest stable Xcode (26 preferred, 16 fallback)
         run: |
           echo "Installed Xcodes:"; ls -d /Applications/Xcode*.app
-          XCODE=$(ls -d /Applications/Xcode_16*.app | sort -V | tail -n 1)
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | grep -vi beta | sort -V | tail -n 1)
+          if [ -z "$XCODE" ]; then
+            XCODE=$(ls -d /Applications/Xcode_16*.app | sort -V | tail -n 1)
+          fi
           echo "Using $XCODE"
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
+
+      - name: 🎛️ Download Metal toolchain (Xcode 26+ only)
+        run: |
+          if xcodebuild -version | head -n 1 | grep -q "Xcode 26"; then
+            xcodebuild -downloadComponent MetalToolchain || echo "Metal toolchain download failed or not needed; continuing"
+          else
+            echo "Not Xcode 26, skipping"
+          fi
+
+      - name: 🧭 Pick workspace vs project
+        run: |
+          cd "$PROJECT_DIR"
+          if [ -d RVCNative.xcworkspace ]; then
+            echo "XCODE_CONTAINER=-workspace RVCNative.xcworkspace" >> "$GITHUB_ENV"
+            echo "Using workspace"
+          else
+            echo "XCODE_CONTAINER=-project RVCNative.xcodeproj" >> "$GITHUB_ENV"
+            echo "No workspace found, using project"
+          fi
 
       - name: 🌐 Configure Git Resolution
         run: |
@@ -51,8 +81,9 @@ jobs:
           set -o pipefail
           mkdir -p "$LOGS"
           cd "$PROJECT_DIR"
+          xcodebuild -list $XCODE_CONTAINER
           xcodebuild -resolvePackageDependencies \
-            -project RVCNative.xcodeproj \
+            $XCODE_CONTAINER \
             -scheme "RVCNative" \
             -derivedDataPath "$DERIVED" \
             -skipPackagePluginValidation \
@@ -63,7 +94,7 @@ jobs:
           set -o pipefail
           cd "$PROJECT_DIR"
           xcodebuild build \
-            -project RVCNative.xcodeproj \
+            $XCODE_CONTAINER \
             -scheme "RVCNative" \
             -configuration Release \
             -destination "generic/platform=iOS" \
