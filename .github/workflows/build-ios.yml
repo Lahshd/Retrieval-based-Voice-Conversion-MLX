@@ -1,23 +1,32 @@
 name: 🍎 Cloud iOS IPA Compiler
 
 on:
-  workflow_dispatch: # Allows you to manually click a button to run the build
+  workflow_dispatch:
 
 jobs:
   build-ipa:
     name: Compile RVC MLX iOS App
-    runs-on: macos-14 # Uses Apple's hosted M1/M2 macOS runners
+    runs-on: macos-14
     
     steps:
       - name: 📦 Checkout Repository Source
         uses: actions/checkout@v4
+        with:
+          submodules: recursive # Ensures nested modules pull automatically
 
       - name: 🔧 Select Latest Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.4.app
 
-      - name: 🛠️ Resolve Swift Package Dependencies
+      - name: 🌐 Configure Git for Public HTTPS Package Resolution
         run: |
-          xcodebuild -resolvePackageDependencies -project RVC-MLX.xcodeproj || true
+          git config --global url."https://github.com".insteadOf "git@github.com:"
+          defaults write com.apple.dt.Xcode IDEPackageSupportUseBuiltInSCM YES
+
+      - name: 🛠️ Force Resolve Swift Package Dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project RVC-MLX.xcodeproj \
+            -scheme "RVC-MLX"
 
       - name: 🔨 Compile & Build Archive (Unsigned Template)
         run: |
@@ -30,7 +39,8 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            PROVISIONING_PROFILE_SPECIFIER=""
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            COMPILER_INDEX_STORE_ENABLE=NO
 
       - name: 📦 Structure Unsigned App Into Payload Directory
         run: |
