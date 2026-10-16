@@ -12,7 +12,12 @@ jobs:
       - name: 📦 Checkout Repository Source
         uses: actions/checkout@v4
         with:
-          submodules: recursive # Ensures nested modules pull automatically
+          submodules: false # Disabled to prevent crashing on the broken mlx-swift reference
+
+      - name: 🔧 Clean Broken Submodule References
+        run: |
+          # Force remove the invalid/empty vendor folder breaking git commands
+          rm -rf Demos/iOS/RVCNative/Vendor/mlx-swift || true
 
       - name: 🔧 Select Latest Xcode Version
         run: sudo xcode-select -s /Applications/Xcode_15.4.app
